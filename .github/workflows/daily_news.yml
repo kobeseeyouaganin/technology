@@ -2,7 +2,6 @@ name: Daily Tech News Update
 
 on:
   schedule:
-    # 国际标准时间 01:00 是北京时间 09:00
     - cron: '0 1 * * *'
   workflow_dispatch:
 
