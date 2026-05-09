@@ -6,25 +6,22 @@ from email.mime.text import MIMEText
 from email.header import Header
 
 def get_news_by_scraping():
-    # 模拟真实浏览器访问，避免被网站拦截
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
-    # 抓取 The Verge 的科技/硬件板块
+    # 抓取 The Verge 的科技板块
     url = "https://www.theverge.com/tech"
     
     try:
         response = requests.get(url, headers=headers)
-        # 指定 lxml 解析器，这是计算机二级考试中常提到的高效解析方式
         soup = BeautifulSoup(response.text, 'lxml')
         
-        # 寻找新闻条目（根据 The Verge 2026 年的最新的 HTML 结构定位）
-        # 抓取前 5 条带链接的标题
+        # 抓取前 5 条标题
         articles = soup.find_all('h2', limit=5)
         
         html_content = """
         <html>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #222;">
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
             <div style="background-color: #e5127d; color: white; padding: 20px; text-align: center;">
                 <h1>The Verge 深度科技快报</h1>
             </div>
@@ -55,7 +52,6 @@ def get_news_by_scraping():
         return f"<h3>爬取数据时遇到了一点小麻烦:</h3><p>{e}</p>"
 
 def send_email(content):
-    # 这里的 Secrets 配置和你之前设置的一样，不用改
     sender = os.environ['EMAIL_USER']
     password = os.environ['EMAIL_PASS']
     receiver = sender 
@@ -65,6 +61,8 @@ def send_email(content):
     message['To'] = receiver
     message['Subject'] = Header('每日科技深度爬取报告', 'utf-8')
 
+    # 初始化变量，方便在 finally 中引用
+    smtp_obj = None
     try:
         smtp_obj = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         smtp_obj.login(sender, password)
@@ -72,6 +70,11 @@ def send_email(content):
         print("邮件发送成功")
     except Exception as e:
         print(f"发送失败: {e}")
+    finally:
+        # 无论成功还是失败，只要连接建立了，就强制退出
+        if smtp_obj:
+            smtp_obj.quit()
+            print("SMTP 连接已安全关闭")
 
 if __name__ == "__main__":
     news_content = get_news_by_scraping()
