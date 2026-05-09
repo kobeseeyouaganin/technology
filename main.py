@@ -1,55 +1,69 @@
 import os
 import requests
 import smtplib
+from bs4 import BeautifulSoup
 from email.mime.text import MIMEText
 from email.header import Header
 
-def get_news():
-    api_key = os.environ['NEWS_API_KEY']
-    # 依然使用英文源，因为图片质量和覆盖率更高
-    url = f'https://newsapi.org/v2/top-headlines?category=technology&language=en&pageSize=5&apiKey={api_key}'
+def get_news_by_scraping():
+    # 模拟真实浏览器访问，避免被网站拦截
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    # 抓取 The Verge 的科技/硬件板块
+    url = "https://www.theverge.com/tech"
     
-    response = requests.get(url)
-    articles = response.json().get('articles', [])
-    
-    if not articles:
-        return "<h3>今日暂无科技要闻。</h3>"
+    try:
+        response = requests.get(url, headers=headers)
+        # 指定 lxml 解析器，这是计算机二级考试中常提到的高效解析方式
+        soup = BeautifulSoup(response.text, 'lxml')
         
-    # 开始构建 HTML 格式的正文
-    html_content = """
-    <html>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2 style="color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;">今日科技要闻 (Global Tech News)</h2>
-    """
-    
-    for i, art in enumerate(articles, 1):
-        title = art.get('title', '无标题')
-        url_link = art.get('url', '无链接')
-        img_url = art.get('urlToImage')
-        description = art.get('description', '')
-
-        html_content += f"""
-        <div style="margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
-            <h3 style="margin-bottom: 10px;">{i}. {title}</h3>
-            {f'<img src="{img_url}" style="width: 100%; max-width: 500px; border-radius: 8px; margin-bottom: 10px;">' if img_url else ''}
-            <p style="font-size: 14px; color: #666;">{description}</p>
-            <a href="{url_link}" style="display: inline-block; padding: 8px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-size: 14px;">阅读原文</a>
-        </div>
+        # 寻找新闻条目（根据 The Verge 2026 年的最新的 HTML 结构定位）
+        # 抓取前 5 条带链接的标题
+        articles = soup.find_all('h2', limit=5)
+        
+        html_content = """
+        <html>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #222;">
+            <div style="background-color: #e5127d; color: white; padding: 20px; text-align: center;">
+                <h1>The Verge 深度科技快报</h1>
+            </div>
+            <div style="padding: 20px;">
         """
-    
-    html_content += "</body></html>"
-    return html_content
+        
+        for i, art in enumerate(articles, 1):
+            link_tag = art.find('a')
+            if link_tag:
+                title = link_tag.text.strip()
+                link = "https://www.theverge.com" + link_tag['href'] if not link_tag['href'].startswith('http') else link_tag['href']
+                
+                html_content += f"""
+                <div style="margin-bottom: 25px; border-left: 4px solid #e5127d; padding-left: 15px;">
+                    <h3 style="margin: 0 0 10px 0;">{i}. {title}</h3>
+                    <a href="{link}" style="color: #e5127d; text-decoration: none; font-weight: bold;">查看深度报道 →</a>
+                </div>
+                """
+        
+        html_content += """
+            </div>
+            <p style="text-align: center; color: #888; font-size: 12px;">由您的 GitHub 云端机器人自动抓取发送</p>
+        </body>
+        </html>
+        """
+        return html_content
+    except Exception as e:
+        return f"<h3>爬取数据时遇到了一点小麻烦:</h3><p>{e}</p>"
 
 def send_email(content):
+    # 这里的 Secrets 配置和你之前设置的一样，不用改
     sender = os.environ['EMAIL_USER']
     password = os.environ['EMAIL_PASS']
     receiver = sender 
 
-    # 注意：这里从 'plain' 变成了 'html'
     message = MIMEText(content, 'html', 'utf-8')
     message['From'] = sender
     message['To'] = receiver
-    message['Subject'] = Header('每日科技图文早报', 'utf-8')
+    message['Subject'] = Header('每日科技深度爬取报告', 'utf-8')
 
     try:
         smtp_obj = smtplib.SMTP_SSL('smtp.gmail.com', 465)
@@ -60,5 +74,5 @@ def send_email(content):
         print(f"发送失败: {e}")
 
 if __name__ == "__main__":
-    news_content = get_news()
+    news_content = get_news_by_scraping()
     send_email(news_content)
