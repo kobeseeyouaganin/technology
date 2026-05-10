@@ -9,56 +9,76 @@ def get_rich_news():
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
-    # 抓取 TechCrunch 首页
-    url = "https://techcrunch.com/"
+    # 使用 The Verge 的科技板块，它的结构更适合新手学习抓取
+    url = "https://www.theverge.com/tech"
     
     try:
         response = requests.get(url, headers=headers)
         soup = BeautifulSoup(response.text, 'lxml')
         
-        # 抓取文章容器（TechCrunch 的文章块通常是 post-block）
-        articles = soup.find_all('div', class_='post-block', limit=5)
+        # 智能搜索：先找所有的 h2 标题，因为新闻标题通常都在 h2 里
+        articles_data = []
+        headings = soup.find_all('h2', limit=8) 
         
+        for h2 in headings:
+            link_tag = h2.find('a')
+            if not link_tag: continue
+            
+            title = link_tag.text.strip()
+            link = link_tag['href']
+            # 处理相对路径
+            if not link.startswith('http'):
+                link = "https://www.theverge.com" + link
+            
+            # 寻找图片：在标题附近的容器里找 img 标签
+            # 逻辑：向上找两层父级，再在里面搜图片
+            parent = h2.parent.parent
+            img_tag = parent.find('img') if parent else None
+            
+            img_url = ""
+            if img_tag:
+                # 尝试抓取 src 属性
+                img_url = img_tag.get('src') or ""
+
+            if title and link:
+                articles_data.append({
+                    'title': title,
+                    'link': link,
+                    'img': img_url
+                })
+            
+            if len(articles_data) >= 5: break
+
+        # 如果抓取失败的兜底提示
+        if not articles_data:
+            return "<h3 style='color:red;'>未能抓取到新闻，请检查网络或网站结构。</h3>"
+
         html_content = """
         <html>
-        <body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
-            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                <div style="background-color: #02ad5f; color: white; padding: 30px; text-align: center;">
-                    <h1 style="margin: 0; font-size: 24px;">李明的科技图文内参</h1>
-                    <p style="margin: 5px 0 0 0; opacity: 0.8;">深度爬取全球最新硬件与互联网动态</p>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="background-color: #e5127d; color: white; padding: 30px; text-align: center;">
+                    <h1 style="margin: 0; font-size: 26px;">李明的科技图文内参</h1>
+                    <p style="margin: 8px 0 0 0; opacity: 0.9;">实时监控 The Verge 全球深度硬件资讯</p>
                 </div>
-                <div style="padding: 20px;">
+                <div style="padding: 25px;">
         """
         
-        for art in articles:
-            # 1. 抓取标题和链接
-            title_tag = art.find('a', class_='post-block__title__link')
-            title = title_tag.text.strip()
-            link = title_tag['href']
-            
-            # 2. 抓取图片（这是关键！）
-            img_tag = art.find('img')
-            # 优先找 src，如果没有就找 data-src（应对懒加载）
-            img_url = img_tag.get('src') or img_tag.get('data-src') if img_tag else None
-            
-            # 3. 抓取简介
-            desc_tag = art.find('div', class_='post-block__content')
-            description = desc_tag.text.strip() if desc_tag else ""
-
-            # 拼接 HTML 卡片布局
+        for i, item in enumerate(articles_data, 1):
             html_content += f"""
             <div style="margin-bottom: 40px; border-bottom: 1px solid #eee; padding-bottom: 30px;">
-                {f'<img src="{img_url}" style="width: 100%; height: auto; border-radius: 8px; margin-bottom: 15px;">' if img_url else ''}
-                <h2 style="font-size: 20px; margin: 0 0 10px 0; color: #333;">{title}</h2>
-                <p style="font-size: 15px; color: #666; line-height: 1.6;">{description[:150]}...</p>
-                <a href="{link}" style="display: inline-block; margin-top: 10px; color: #02ad5f; text-decoration: none; font-weight: bold;">阅读深度报道 →</a>
+                <h2 style="font-size: 20px; line-height: 1.4; margin-bottom: 15px; color: #111;">{i}. {item['title']}</h2>
+                {f'<img src="{item["img"]}" style="width: 100%; height: auto; border-radius: 8px; margin-bottom: 15px; display: block;">' if item['img'] else ''}
+                <div style="margin-top: 15px;">
+                    <a href="{item['link']}" style="display: inline-block; padding: 12px 25px; background-color: #e5127d; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">阅读详细报道</a>
+                </div>
             </div>
             """
         
         html_content += """
                 </div>
-                <div style="background-color: #f9f9f9; padding: 20px; text-align: center; color: #999; font-size: 12px;">
-                    由您的 GitHub 云端机器人自动抓取发送
+                <div style="background-color: #f9f9f9; padding: 20px; text-align: center; color: #888; font-size: 12px;">
+                    由您的 GitHub 云端机器人自动抓取并渲染
                 </div>
             </div>
         </body>
@@ -66,7 +86,7 @@ def get_rich_news():
         """
         return html_content
     except Exception as e:
-        return f"<h3>爬虫在寻找图片时迷路了:</h3><p>{e}</p>"
+        return f"<h3>爬取过程中出现错误:</h3><p>{str(e)}</p>"
 
 def send_email(content):
     sender = os.environ['EMAIL_USER']
@@ -76,7 +96,7 @@ def send_email(content):
     message = MIMEText(content, 'html', 'utf-8')
     message['From'] = sender
     message['To'] = receiver
-    message['Subject'] = Header('李明的科技图文内参', 'utf-8')
+    message['Subject'] = Header('李明的每日科技内参', 'utf-8')
 
     smtp_obj = None
     try:
